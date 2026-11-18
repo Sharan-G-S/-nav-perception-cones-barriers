@@ -601,4 +601,3 @@ uv run navdet flow --weights runs/train/yolov8n/weights/best.pt --image data/dem
 - **Name:** Sharan G S
 - **GitHub:** [Sharan-G-S](https://github.com/Sharan-G-S)
 - **Email:** sharangs08@gmail.com
-- **Phone:** +91 XXXXX XXXXX
