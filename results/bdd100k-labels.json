@@ -1,0 +1,18 @@
+{
+  "images": 10000,
+  "boxes": {
+    "car": 102837,
+    "traffic sign": 34724,
+    "traffic light": 26884,
+    "pedestrian": 13425,
+    "truck": 4243,
+    "bus": 1660,
+    "bicycle": 1039,
+    "rider": 658,
+    "motorcycle": 460,
+    "other vehicle": 85,
+    "train": 15,
+    "trailer": 2,
+    "other person": 1
+  }
+}

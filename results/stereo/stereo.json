@@ -1,0 +1,14 @@
+{
+  "focal_px": 1870.0,
+  "baseline_m": 0.16,
+  "scale": 0.5,
+  "disparity_offset_px": 0.0,
+  "size": [
+    641,
+    555
+  ],
+  "valid_fraction": 0.6851344324043231,
+  "disparity_px_median": 32.75,
+  "depth_m_median": 9.135878562927246,
+  "depth_m_min": 2.1304852962493896
+}

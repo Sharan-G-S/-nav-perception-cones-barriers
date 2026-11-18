@@ -1,0 +1,26 @@
+{
+  "weights": "runs/train/yolov8n/weights/best.pt",
+  "split": "val",
+  "imgsz": 640,
+  "device": "mps",
+  "map50": 0.595688003319618,
+  "map50_95": 0.39214728077759914,
+  "precision": 0.6810603499263088,
+  "recall": 0.5584328093067072,
+  "per_class_map50": {
+    "cone": 0.6306732738490117,
+    "barrier": 0.49069513690548083,
+    "stop_sign": 0.6656955992043615
+  },
+  "per_class_map50_95": {
+    "cone": 0.3108878437129206,
+    "barrier": 0.262996584466591,
+    "stop_sign": 0.6025574141532859
+  },
+  "speed_ms": {
+    "preprocess": 0.21107941110029868,
+    "inference": 4.319924322216038,
+    "loss": 9.237225337225634e-05,
+    "postprocess": 6.396765744456287
+  }
+}
