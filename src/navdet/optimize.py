@@ -358,3 +358,36 @@ def markdown_table(results: list[BenchmarkResult]) -> str:
             f"| {r.variant} | {r.device} | {r.precision} | {r.size_mb:.1f} | {fmt(r.map50, 3)} | {fmt(r.map50_95, 3)} | {r.latency_ms:.1f} | {r.fps:.1f} |"
         )
     return "\n".join(lines)
+
+
+def before_after_figure(
+    models: dict[str, Path | str],
+    frame: np.ndarray,
+    intrinsics,
+    config,
+    imgsz: int = 640,
+    device: str = "cpu",
+    conf: float = 0.3,
+    tile_width: int = 960,
+) -> np.ndarray:
+    """One row per model: the same frame annotated with distances, headed by the model name and its measured latency."""
+    from navdet.detect import annotate, with_distances
+
+    tiles = []
+    for name, path in models.items():
+        detector = Detector(path, device=device, imgsz=imgsz, conf=conf)
+        detector.detect(frame)
+        start = time.perf_counter()
+        dets = detector.detect(frame)
+        latency_ms = 1000.0 * (time.perf_counter() - start)
+        dets = with_distances(dets, intrinsics, config)
+        drawn = annotate(frame, dets)
+        scale = tile_width / drawn.shape[1]
+        drawn = cv2.resize(drawn, (tile_width, round(drawn.shape[0] * scale)))
+        header = np.full((36, tile_width, 3), 30, dtype=np.uint8)
+        text = f"{name}  |  {file_size_mb(path):.1f} MB  |  {len(dets)} detections  |  {latency_ms:.0f} ms this frame"
+        cv2.putText(
+            header, text, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 1, cv2.LINE_AA
+        )
+        tiles.append(np.vstack([header, drawn]))
+    return np.vstack(tiles)

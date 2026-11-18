@@ -13,3 +13,7 @@
 | backbone yolov8s (COCO weights, speed only) | mps | fp32 | 21.5 | n/a | n/a | 25.0 | 40.0 |
 | backbone yolov8m (COCO weights, speed only) | cpu | fp32 | 49.7 | n/a | n/a | 111.1 | 9.0 |
 | backbone yolov8m (COCO weights, speed only) | mps | fp32 | 49.7 | n/a | n/a | 47.8 | 20.9 |
+| backbone yolo11n (COCO weights, speed only) | cpu | fp32 | 5.3 | n/a | n/a | 35.8 | 28.0 |
+| backbone yolo11n (COCO weights, speed only) | mps | fp32 | 5.3 | n/a | n/a | 25.7 | 38.9 |
+| backbone yolo26n (COCO weights, speed only) | cpu | fp32 | 5.3 | n/a | n/a | 37.9 | 26.4 |
+| backbone yolo26n (COCO weights, speed only) | mps | fp32 | 5.3 | n/a | n/a | 18.3 | 54.7 |

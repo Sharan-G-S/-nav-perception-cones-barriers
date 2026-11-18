@@ -21,6 +21,23 @@ the Jetson with `--device 0`.
   <br><em>Barriers and cones with estimated distances, and the bird's-eye view built from the camera's ground-plane homography (right panel, forward is up, 5 m grid).</em>
 </p>
 
+## Assignment checklist
+
+| Requirement | Where it is done | Evidence |
+|---|---|---|
+| Detect cones, barriers, stop signs | `train.py`, `detect.py`; YOLOv8n transfer-learned from COCO | [section 1](#1-object-detection), [results/metrics-yolov8n.json](results/metrics-yolov8n.json) |
+| Work with BDD100K (plus other datasets) | `data.py`: BDD100K backgrounds, nuImages (cones, barriers), LVIS (stop signs, cones) | [section 1.2](#12-data-bdd100k-plus-two-labelled-sources), [results/bdd100k-labels.json](results/bdd100k-labels.json) |
+| Transfer learning, clean modular code | one module per concern, 45 real tests, `navdet` CLI | [layout](#repository-layout) |
+| Distance from geometry (focal length, pixel size) | `geometry.py`: $Z = f_y H / h_{\text{box}}$ and the ground-plane method | [section 2](#2-distance-estimation), [worked table](#25-worked-examples-from-pixels-to-metres) |
+| Annotate as `Cone, 1.5m` | `detect.py annotate()` | every image in [results/detections/](results/detections/) |
+| Quantisation, before vs after | ONNX INT8 static, calibrated | [table](#32-before-and-after) and [figures](#33-before-and-after-on-the-same-frames) |
+| Pruning, before vs after | L1 unstructured 30 percent, sparse fine-tune | same table and figures |
+| Lightweight backbone swap | YOLOv8n vs s vs m, plus YOLO11n and YOLO26n | same table, [section 3.4](#34-yolo11-and-yolo26-for-edge-devices) |
+| FPS on CPU and GPU | end-to-end benchmark harness, `navdet optimize` | same table |
+| Epipolar geometry, disparity to depth | `extras/stereo.py` | [section 4.1](#41-epipolar-geometry-and-stereo-depth), [docs/geometry.md](docs/geometry.md) |
+| Homography / bird's-eye view | `extras/bev.py` | [section 4.2](#42-homography-and-birds-eye-view) |
+| Optical flow tracking | `extras/flow.py` | [section 4.3](#43-optical-flow-tracking) |
+
 ## Contents
 
 1. [Results at a glance](#results-at-a-glance)
@@ -47,8 +64,8 @@ the Jetson with `--device 0`.
 | CPU frame rate (M1, 640 px, end to end) | PyTorch FP32 30.7 FPS; ONNX INT8 28.4 FPS at 3.4 MB (mAP50 0.575) |
 | GPU frame rate (M1 MPS) | FP32 79.9 FPS, FP16 69.5 FPS, same mAP |
 | Pruning 30 percent (L1, no retrain) | mAP50 0.571, checkpoint 17 percent smaller gzipped, FPS unchanged |
-| Backbone swap (CPU FPS, n / s / m) | 26.9 / 15.4 / 9.0 |
-| Tests | 44 real tests, `uv run pytest`, about 30 seconds |
+| Backbone swap (CPU FPS, YOLOv8 n / s / m) | 26.9 / 15.4 / 9.0; YOLO11n and YOLO26n in [section 3.4](#34-yolo11-and-yolo26-for-edge-devices) |
+| Tests | 45 real tests, `uv run pytest`, about 30 seconds |
 
 ## Repository layout
 
@@ -66,7 +83,7 @@ robot-nav-detection/
     extras/bev.py      ground-plane homography, bird's-eye-view warp, detections on the metric grid
     extras/flow.py     Lucas-Kanade flow tracker that carries detections across frames
     cli.py             `navdet` command line (prepare-data, train, evaluate, detect, optimize, bev, stereo, flow, bdd-stats)
-  tests/               44 tests that exercise the real code paths, no mocks
+  tests/               45 tests that exercise the real code paths, no mocks
   docs/geometry.md     derivations: pinhole distance, epipolar geometry, disparity-depth, homography
   docs/optimization.md before/after discussion of every edge optimisation
   results/             metrics, benchmark tables, annotated images, training curves (committed)
@@ -83,7 +100,7 @@ M1 GPU).
 ```bash
 cd robot-nav-detection
 uv sync --all-groups          # creates .venv from uv.lock (exact versions below)
-uv run pytest                 # 44 tests
+uv run pytest                 # 45 tests
 # or, without uv:
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt && pip install -e .
@@ -276,6 +293,27 @@ this frame: it comes from the barrier-height assumption on one side and from the
 pitch and the box bottom not being the exact ground contact on the other. On the robot the
 stereo depth at the box centre settles it; see section 4.1.
 
+### 2.5 Worked examples: from pixels to metres
+
+The nuImages frames are 1600 x 900 with $f_y$ = 1266.4 px (published calibration), so every
+distance in the figures is reproducible by hand from the box height in
+[detections.json](results/detections/detections.json):
+
+| Frame | Object (confidence) | Box height $h$ (px) | Assumed height $H$ (m) | $Z = f_y H / h$ | Bearing |
+|---|---|---|---|---|---|
+| Boston barriers | barrier (0.94) | 184.9 | 1.00 | 1266.4 x 1.00 / 184.9 = **6.8 m** | +28.2 deg |
+| Boston barriers | barrier (0.92) | 180.1 | 1.00 | 1266.4 x 1.00 / 180.1 = **7.0 m** | +13.4 deg |
+| Boston barriers | barrier (0.84) | 189.6 | 1.00 | 1266.4 x 1.00 / 189.6 = **6.7 m** | +29.7 deg |
+| Cone lane | cone (0.87) | 110.4 | 0.70 | 1266.4 x 0.70 / 110.4 = **8.0 m** | +13.4 deg |
+| Cone lane | cone (0.86) | 72.0 | 0.70 | 1266.4 x 0.70 / 72.0 = **12.3 m** | +8.4 deg |
+| Cone lane | cone (0.79) | 43.7 | 0.70 | 1266.4 x 0.70 / 43.7 = **20.3 m** | -22.2 deg |
+
+The pixel size enters through $f_y$: a 1266 px focal length means each pixel subtends
+$1/1266$ rad, so an object $h$ px tall subtends $h/1266$ rad and sits at $H / (h/1266)$
+metres, which is the same formula. For the LVIS / COCO frames (stop signs) no calibration
+exists, so the preset scaled to the frame is used and the distances there are indicative; on
+the robot the ZED or RealSense intrinsics replace the preset exactly (section 5).
+
 ## 3. Optimisation for edge devices
 
 ### 3.1 Concepts
@@ -301,7 +339,8 @@ stereo depth at the box centre settles it; see section 4.1.
 - **Lighter backbone.** The same detector family at different widths and depths: YOLOv8n
   (3.2 M parameters, 8.7 GFLOPs), YOLOv8s (11.2 M, 28.6 GFLOPs), YOLOv8m (25.9 M, 78.9 GFLOPs).
   The fine-tuned model is the n; the s and m rows in the table are timed with their COCO weights
-  to show the speed side of a backbone swap on identical frames.
+  to show the speed side of a backbone swap on identical frames. Newer families (YOLO11,
+  YOLO26) are covered in [section 3.4](#34-yolo11-and-yolo26-for-edge-devices).
 
 `navdet optimize` (`optimize.py`) exports and measures each variant **end to end** (letterbox
 preprocessing, inference, NMS postprocessing) on real validation frames, 40 timed frames after
@@ -325,6 +364,10 @@ beside it.
 | backbone yolov8s (COCO weights, speed only) | mps | fp32 | 21.5 | n/a | n/a | 25.0 | 40.0 |
 | backbone yolov8m (COCO weights, speed only) | cpu | fp32 | 49.7 | n/a | n/a | 111.1 | 9.0 |
 | backbone yolov8m (COCO weights, speed only) | mps | fp32 | 49.7 | n/a | n/a | 47.8 | 20.9 |
+| backbone yolo11n (COCO weights, speed only) | cpu | fp32 | 5.3 | n/a | n/a | 35.8 | 28.0 |
+| backbone yolo11n (COCO weights, speed only) | mps | fp32 | 5.3 | n/a | n/a | 25.7 | 38.9 |
+| backbone yolo26n (COCO weights, speed only) | cpu | fp32 | 5.3 | n/a | n/a | 37.9 | 26.4 |
+| backbone yolo26n (COCO weights, speed only) | mps | fp32 | 5.3 | n/a | n/a | 18.3 | 54.7 |
 
 How to read it (full discussion in [docs/optimization.md](docs/optimization.md)):
 
@@ -344,6 +387,67 @@ How to read it (full discussion in [docs/optimization.md](docs/optimization.md))
 
 Raw numbers: [results/optimization/optimization.json](results/optimization/optimization.json).
 Discussion: [docs/optimization.md](docs/optimization.md).
+
+### 3.3 Before and after on the same frames
+
+`navdet compare` runs one frame through several model files and stacks the annotated results
+with the file size, detection count and that frame's latency in each header, so the effect of
+quantisation and pruning is visible on the actual detections and distances, not only in the
+table. Top: FP32 PyTorch (before). Middle: INT8 ONNX (after quantisation). Bottom: 30 percent
+L1 pruned (after pruning, no retraining).
+
+```bash
+uv run navdet compare --models fp32=runs/train/yolov8n/weights/best.pt int8=results/optimization/best-int8.onnx pruned30=results/optimization/best-pruned30.pt --image data/demo/images/<frame>.jpg --camera nuimages
+```
+
+<p align="center">
+  <img src="results/before-after/barriers-fp32-int8-pruned.jpg" width="100%" alt="Before and after on the Boston barriers frame">
+  <br><em>Boston barriers: FP32 finds 14 objects, INT8 13 (distances within 0.4 m of FP32 on every shared object), the pruned model 12 and it misses the nearest barrier, which matches its lower mAP.</em>
+</p>
+
+<p align="center">
+  <img src="results/before-after/cone-lane-fp32-int8-pruned.jpg" width="100%" alt="Before and after on the cone lane frame">
+  <br><em>Cone lane: the far cones (10 to 20 px) are where INT8 and pruning lose detections first.</em>
+</p>
+
+<p align="center">
+  <img src="results/before-after/stop-sign-fp32-int8-pruned.jpg" width="70%" alt="Before and after on a stop sign frame">
+  <br><em>Stop sign (COCO frame, 60 degree field of view assumed): all three variants keep the sign and both cones.</em>
+</p>
+
+Single-frame latencies in the headers are one sample each; the averaged numbers over 40 frames
+are the ones in the table above.
+
+### 3.4 YOLO11 and YOLO26 for edge devices
+
+The pipeline is not tied to YOLOv8. Ultralytics 8.4 ships **YOLO11** (the 2024 successor, about
+the same speed as v8 at higher mAP on COCO: YOLO11n 2.6 M parameters, 6.5 GFLOPs) and
+**YOLO26** (2025/2026, trained end to end without NMS, so the exported model has no
+non-maximum-suppression stage at all, which removes the 6 ms of post-processing this pipeline
+pays per frame on CPU and makes TensorRT INT8 engines simpler and more deterministic on a
+Jetson). Both load through the same `Detector` and train with the same command:
+
+```bash
+uv run navdet train --model yolo11n.pt --name yolo11n       # YOLO11 nano
+uv run navdet train --model yolo26n.pt --name yolo26n       # YOLO26 nano, NMS-free
+uv run navdet optimize --weights runs/train/yolo26n/weights/best.pt
+```
+
+Measured on the same validation frames with their COCO weights (speed only, same harness):
+
+| Model (COCO weights) | File (MB) | CPU FPS | CPU latency (ms) | GPU (MPS) FPS | GPU latency (ms) | Post-processing |
+|---|---|---|---|---|---|---|
+| YOLOv8n | 6.2 | 26.9 | 37.1 | 48.7 | 20.5 | NMS |
+| YOLO11n | 5.3 | 28.0 | 35.8 | 38.9 | 25.7 | NMS |
+| YOLO26n | 5.3 | 26.4 | 37.9 | **54.7** | **18.3** | none (end to end) |
+
+YOLO26n is the fastest of the three on the GPU because it has no NMS stage; on this CPU the
+three nano models are within 10 percent of each other, and the 80-class NMS of the COCO weights
+is the same cost for v8 and 11.
+
+For the Orin the recommendation is YOLO26n or YOLO11n exported to TensorRT INT8; YOLOv8n was
+fine-tuned here because its export and quantisation paths are the most battle-tested, and the
+accuracy comparison between the three families on this dataset is one `navdet train` per model.
 
 ## 4. Extras
 
@@ -459,7 +563,7 @@ shows the same ordering for the formats it can run.
 ```bash
 cd robot-nav-detection
 uv sync --all-groups
-uv run pytest -q                                   # 44 passed
+uv run pytest -q                                   # 45 passed
 uv run navdet bdd-stats                             # BDD100K label counts -> results/bdd100k-labels.json
 uv run navdet prepare-data                          # downloads nuImages/LVIS/BDD100K pieces -> data/yolo (about 10 min)
 uv run navdet train --device mps                    # or --device 0 (CUDA) / cpu; 30 epochs, 52 min on the M1

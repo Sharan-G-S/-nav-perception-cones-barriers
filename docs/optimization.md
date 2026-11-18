@@ -28,6 +28,10 @@ speed number has its accuracy next to it. The raw rows are in
 | backbone yolov8s (COCO weights, speed only) | mps | fp32 | 21.5 | n/a | n/a | 25.0 | 40.0 |
 | backbone yolov8m (COCO weights, speed only) | cpu | fp32 | 49.7 | n/a | n/a | 111.1 | 9.0 |
 | backbone yolov8m (COCO weights, speed only) | mps | fp32 | 49.7 | n/a | n/a | 47.8 | 20.9 |
+| backbone yolo11n (COCO weights, speed only) | cpu | fp32 | 5.3 | n/a | n/a | 35.8 | 28.0 |
+| backbone yolo11n (COCO weights, speed only) | mps | fp32 | 5.3 | n/a | n/a | 25.7 | 38.9 |
+| backbone yolo26n (COCO weights, speed only) | cpu | fp32 | 5.3 | n/a | n/a | 37.9 | 26.4 |
+| backbone yolo26n (COCO weights, speed only) | mps | fp32 | 5.3 | n/a | n/a | 18.3 | 54.7 |
 
 ## What the rows say
 
@@ -77,7 +81,9 @@ CPU and 48.7 / 40.0 / 20.9 FPS on the GPU, with 6.2 / 21.5 / 49.7 MB files; that
 3-class n at 30.7 FPS). Fine-tuning s or m with the same `navdet train --model yolov8s.pt`
 command is the obvious accuracy lever if the robot has the budget: on a Jetson AGX Orin all
 three sizes exceed real time, so the choice is set by how much of the GPU the rest of the
-navigation stack needs.
+navigation stack needs. The newer nano models time at 28.0 FPS (YOLO11n) and 26.4 FPS
+(YOLO26n) on the CPU and 38.9 / 54.7 FPS on the GPU; YOLO26n is NMS-free, which is why it is
+the fastest on the GPU and the natural pick for a TensorRT engine on the Orin.
 
 ## What to run on the robot
 

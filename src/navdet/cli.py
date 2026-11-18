@@ -207,6 +207,26 @@ def cmd_optimize(args) -> None:
     print(markdown_table(results))
 
 
+def cmd_compare(args) -> None:
+    from navdet.optimize import before_after_figure
+
+    models = {}
+    for item in args.models:
+        name, path = item.split("=", 1)
+        models[name] = Path(path)
+    frame = cv2.imread(str(args.image))
+    intrinsics = frame_intrinsics(args, frame.shape[1], frame.shape[0])
+    config = DistanceConfig(
+        method=args.method, camera_height_m=camera_height(args), pitch_deg=args.pitch
+    )
+    figure = before_after_figure(
+        models, frame, intrinsics, config, imgsz=args.imgsz, device=args.device, conf=args.conf
+    )
+    Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+    cv2.imwrite(str(args.out), figure, [cv2.IMWRITE_JPEG_QUALITY, 85])
+    print(args.out)
+
+
 def cmd_bev(args) -> None:
     from navdet.extras.bev import BevGrid, bev_warp, draw_detections_on_bev
 
@@ -405,6 +425,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="which parts to run; rows merge into the existing table",
     )
     p.set_defaults(func=cmd_optimize)
+
+    p = sub.add_parser(
+        "compare", help="same frame through several models, stacked, for before/after figures"
+    )
+    add_model_args(p)
+    add_camera_args(p)
+    p.add_argument(
+        "--models",
+        nargs="+",
+        required=True,
+        help="name=path pairs, e.g. fp32=best.pt int8=best-int8.onnx",
+    )
+    p.add_argument("--image", required=True)
+    p.add_argument("--method", choices=["height", "ground"], default="height")
+    p.add_argument("--out", default="results/before-after/compare.jpg")
+    p.set_defaults(func=cmd_compare)
 
     p = sub.add_parser("bev", help="warp an image to a bird's-eye view and plot detections on it")
     add_model_args(p)

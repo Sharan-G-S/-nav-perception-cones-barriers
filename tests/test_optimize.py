@@ -80,3 +80,17 @@ def test_file_size_in_megabytes(tmp_path):
     p = tmp_path / "blob.bin"
     p.write_bytes(np.zeros(2 * 1024 * 1024, dtype=np.uint8).tobytes())
     assert file_size_mb(p) == pytest.approx(2.0)
+
+
+def test_before_after_figure_stacks_one_tile_per_model(weights, frames):
+    from navdet.detect import DistanceConfig
+    from navdet.geometry import CameraIntrinsics
+    from navdet.optimize import before_after_figure
+
+    frame = frames[0]
+    cam = CameraIntrinsics.from_hfov(frame.shape[1], frame.shape[0], 70.0)
+    figure = before_after_figure(
+        {"a": weights, "b": weights}, frame, cam, DistanceConfig(), imgsz=320, tile_width=480
+    )
+    tile_h = 36 + round(frame.shape[0] * 480 / frame.shape[1])
+    assert figure.shape == (2 * tile_h, 480, 3)
